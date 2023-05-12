@@ -120,3 +120,129 @@ spec:
 - When a disruptive event occurs, such as a node being drained for maintenance or a cluster upgrade, Kubernetes checks the Pod Disruption Budget to ensure it doesn't violate the defined availability requirements. If the event would exceed the specified maxUnavailable value, the disruption is not allowed, and the operation is postponed until the necessary number of Pods are available.
 - By setting appropriate values for maxUnavailable, you can control the availability of your application during planned or unplanned disruptions. For example, setting maxUnavailable: 1 ensures that at least one Pod remains available during disruptions, providing a certain level of redundancy and availability.
 - It's important to note that the actual availability of your application also depends on factors such as the number of replicas, resource constraints, and the overall health of your cluster. PDBs are a tool to define and enforce availability policies, but they should be used in conjunction with other Kubernetes features and best practices to achieve the desired level of application resilience.
+
+# How to schedule pod across the AZ and different type of k8s topologyKey.
+
+In Kubernetes, topologyKey is a field used in various scheduling configurations to define the topology domain on which scheduling decisions are made. It represents a label or annotation key that identifies a specific topology domain, such as a node, zone, region, or other custom topology domains. The value of the topologyKey is used to group resources together based on the defined domain.
+
+# Different Types of topologyKey for scheduling in Kubernetes:
+
+## topologyKey: kubernetes.io/hostname:
+
+This topologyKey represents the node's hostname.
+It can be used to ensure Pods are scheduled onto specific nodes based on their hostname.
+
+### Example usage:
+
+```yaml
+affinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+              - node1
+```
+
+## topologyKey: topology.kubernetes.io/zone:
+
+This topologyKey represents the availability zone (AZ) of a node.
+It can be used to distribute Pods across different availability zones.
+
+### Example usage:
+
+```yaml
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - my-app
+        topologyKey: topology.kubernetes.io/zone
+```
+
+## topologyKey: topology.kubernetes.io/region:
+
+This topologyKey represents the region of a node.
+It can be used to distribute Pods across different regions.
+### Example usage:
+
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/region
+    whenUnsatisfiable: ScheduleAnyway
+```    
+
+## Custom Topology Keys:
+
+You can also define your own custom topology keys based on your infrastructure requirements.
+### Example usage:
+
+```yaml
+affinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: my-custom-topology-key
+            operator: In
+            values:
+              - value1
+              - value2
+```
+
+It's important to note that the availability and behavior of these topology keys may vary depending on the Kubernetes distribution and underlying infrastructure. Consult the documentation and resources specific to your Kubernetes distribution for detailed information on supported topology keys and their usage in scheduling configurations.
+
+# Schedule pods across AZ's
+
+To configure a Kubernetes application to ensure that replicas are distributed across availability zones (AZs), you can use the Pod anti-affinity feature along with the topologySpreadConstraints. This allows you to specify rules that influence the scheduling of Pods across different AZs. Here's an example:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: topology.kubernetes.io/zone
+                labelSelector:
+                  matchLabels:
+                    app: my-app
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: my-app
+```              
+In this example:
+
+- The podAntiAffinity field specifies that Pods of the same application (app: my-app) should be anti-affinitized, meaning they should not be scheduled on the same node or within the same AZ.
+- preferredDuringSchedulingIgnoredDuringExecution sets a preference for scheduling across different AZs.
+- topologyKey: topology.kubernetes.io/zone indicates that AZ is the topology key used for anti-affinity.
+- The topologySpreadConstraints field ensures that Pods are spread across different AZs.
+- maxSkew: 1 specifies that there should be at most one more Pod in any AZ than the AZ with the fewest Pods.
+- whenUnsatisfiable: DoNotSchedule ensures that if the constraint cannot be satisfied, the Pod will not be scheduled instead of being scheduled without adhering to the constraint.
+- With this configuration, Kubernetes will attempt to distribute the Pods of the my-app deployment across different AZs. This improves availability and resilience by avoiding a single point of failure within an AZ.
+
+Note that the effectiveness of distributing Pods across AZs depends on the availability of nodes within those AZs and the configuration of your underlying infrastructure. Additionally, ensure that your cluster has multiple nodes across different AZs for this configuration to take effect.
+
+It's recommended to test and validate the distribution of Pods across AZs in your specific Kubernetes environment and consult the documentation for additional information on anti-affinity and AZ-aware scheduling in your Kubernetes distribution.
