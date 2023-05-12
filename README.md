@@ -94,3 +94,29 @@ spec:
  - Consider using Pod anti-affinity rules to distribute application replicas across different nodes or availability zones to improve fault tolerance.
 
 Please note that the example provided is a basic starting point, and you may need to customize it based on your specific application requirements and infrastructure setup.
+
+# What is PDB:
+
+PDB stands for Pod Disruption Budget. It is a Kubernetes resource that allows you to define the minimum availability requirements for your application during disruptive events such as node maintenance, cluster upgrades, or resource constraints. PDB ensures that a certain number of Pods are available and prevents excessive downtime or unavailability of critical components.
+
+# Here's an example of how to use a Pod Disruption Budget:
+
+```yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: my-pdb
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  maxUnavailable: 1
+```
+
+# In this example:
+
+- The selector field selects the Pods to which the Pod Disruption Budget applies. In this case, it selects Pods with the label app: my-app.
+- The maxUnavailable field defines the maximum number of Pods that can be unavailable at any given time. In this case, it allows at most 1 Pod to be unavailable.
+- When a disruptive event occurs, such as a node being drained for maintenance or a cluster upgrade, Kubernetes checks the Pod Disruption Budget to ensure it doesn't violate the defined availability requirements. If the event would exceed the specified maxUnavailable value, the disruption is not allowed, and the operation is postponed until the necessary number of Pods are available.
+- By setting appropriate values for maxUnavailable, you can control the availability of your application during planned or unplanned disruptions. For example, setting maxUnavailable: 1 ensures that at least one Pod remains available during disruptions, providing a certain level of redundancy and availability.
+- It's important to note that the actual availability of your application also depends on factors such as the number of replicas, resource constraints, and the overall health of your cluster. PDBs are a tool to define and enforce availability policies, but they should be used in conjunction with other Kubernetes features and best practices to achieve the desired level of application resilience.
