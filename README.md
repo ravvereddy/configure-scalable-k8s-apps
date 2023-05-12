@@ -132,7 +132,14 @@ In Kubernetes, topologyKey is a field used in various scheduling configurations 
 This topologyKey represents the node's hostname.
 It can be used to ensure Pods are scheduled onto specific nodes based on their hostname.
 
-### Example usage:
+- Use this topology key when you want to schedule Pods based on specific node hostnames.
+- It allows you to target Pods to run on specific nodes identified by their hostname.
+- 
+### Example use case:
+
+Let's say you have nodes with different hardware capabilities, and you want to ensure that Pods with certain resource requirements are scheduled on nodes with specific hostnames that indicate their hardware capabilities. You can use topologyKey: kubernetes.io/hostname to match the Pod's scheduling requirements with the corresponding node hostname.
+
+### Example syntax usage:
 
 ```yaml
 affinity:
@@ -143,14 +150,57 @@ affinity:
             operator: In
             values:
               - node1
+              - high-capacity-node
 ```
+
+###  Here's an example of scheduling a Pod using the topologyKey: kubernetes.io/hostname:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: my-container
+      image: nginx
+  affinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node1
+```                
+In this example:
+
+- The Pod is scheduled to run on a node with the hostname node1.
+- The affinity field specifies the scheduling requirements for the Pod.
+- The requiredDuringSchedulingIgnoredDuringExecution policy ensures that the Pod is only scheduled on nodes that match the specified criteria.
+- The nodeSelectorTerms field is used to define the node selection criteria.
+- The matchExpressions field specifies the key-value pairs to match against the node labels.
+- The key: kubernetes.io/hostname indicates that the Pod should be scheduled on a node with a matching hostname.
+- The values field specifies the allowed values for the hostname. In this case, it is set to node1.
+With this configuration, the Pod will only be scheduled on a node with the hostname node1. If there are no nodes with that hostname or if they are already fully utilized, the Pod will remain unscheduled until a suitable node becomes available.
+
+You can modify the values field to specify different hostnames or add additional expressions to match against multiple hostnames or patterns. Remember to ensure that the specified hostnames correspond to the actual node hostnames in your cluster.
+
+Note that other factors, such as resource availability, node constraints, and Pod affinity/anti-affinity rules, can also affect the scheduling decision in conjunction with the topologyKey: kubernetes.io/hostname configuration.
+
 
 ## topologyKey: topology.kubernetes.io/zone:
 
-This topologyKey represents the availability zone (AZ) of a node.
-It can be used to distribute Pods across different availability zones.
+This topologyKey represents the availability zone (AZ) of a node. It can be used to distribute Pods across different availability zones.
 
-### Example usage:
+- Use this topology key when you want to distribute Pods across different availability zones (AZs).
+- It allows you to ensure high availability and fault tolerance by spreading Pods across different AZs within a cluster.
+
+### Example use case:
+
+In a multi-AZ Kubernetes cluster, you can use topologyKey: topology.kubernetes.io/zone to enforce anti-affinity rules and distribute Pods of the same application across different AZs. This ensures that if one AZ becomes unavailable, the application continues to run on nodes in other AZs.
+
+### Example syntax usage:
 
 ```yaml
 affinity:
@@ -165,39 +215,7 @@ affinity:
         topologyKey: topology.kubernetes.io/zone
 ```
 
-## topologyKey: topology.kubernetes.io/region:
-
-This topologyKey represents the region of a node.
-It can be used to distribute Pods across different regions.
-### Example usage:
-
-```yaml
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/region
-    whenUnsatisfiable: ScheduleAnyway
-```    
-
-## Custom Topology Keys:
-
-You can also define your own custom topology keys based on your infrastructure requirements.
-### Example usage:
-
-```yaml
-affinity:
-  requiredDuringSchedulingIgnoredDuringExecution:
-    nodeSelectorTerms:
-      - matchExpressions:
-          - key: my-custom-topology-key
-            operator: In
-            values:
-              - value1
-              - value2
-```
-
-It's important to note that the availability and behavior of these topology keys may vary depending on the Kubernetes distribution and underlying infrastructure. Consult the documentation and resources specific to your Kubernetes distribution for detailed information on supported topology keys and their usage in scheduling configurations.
-
-# Schedule pods across AZ's
+###  Here's an example of scheduling a Pod using the topologyKey: kubernetes.io/zone
 
 To configure a Kubernetes application to ensure that replicas are distributed across availability zones (AZs), you can use the Pod anti-affinity feature along with the topologySpreadConstraints. This allows you to specify rules that influence the scheduling of Pods across different AZs. Here's an example:
 
@@ -246,3 +264,94 @@ In this example:
 Note that the effectiveness of distributing Pods across AZs depends on the availability of nodes within those AZs and the configuration of your underlying infrastructure. Additionally, ensure that your cluster has multiple nodes across different AZs for this configuration to take effect.
 
 It's recommended to test and validate the distribution of Pods across AZs in your specific Kubernetes environment and consult the documentation for additional information on anti-affinity and AZ-aware scheduling in your Kubernetes distribution.
+
+
+## topologyKey: kubernetes.io/hostname: & topologyKey: topology.kubernetes.io/zone:
+
+By combining the use of topologyKey with kubernetes.io/hostname and topology.kubernetes.io/zone, you can fine-tune the scheduling of Pods based on specific hostnames and distribute them across different availability zones to achieve high availability and optimized resource allocation.
+
+### Here's an example of using topologyKey with both kubernetes.io/hostname and topology.kubernetes.io/zone in a YAML manifest:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - my-app
+              topologyKey: topology.kubernetes.io/zone
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - high-capacity-node
+      containers:
+        - name: my-container
+          image: nginx
+```
+
+In this example:
+
+- The podAntiAffinity section with topologyKey: topology.kubernetes.io/zone ensures that Pods of the same application (my-app) are scheduled across different availability zones. This provides high availability and fault tolerance by distributing the Pods across multiple zones.
+- The requiredDuringSchedulingIgnoredDuringExecution section with topologyKey: kubernetes.io/hostname specifies that the Pods should be scheduled on nodes with the hostname high-capacity-node. 
+- This targets Pods to run on nodes with specific hostnames that indicate high-capacity hardware capabilities.
+
+### With this configuration:
+
+- The topologyKey: topology.kubernetes.io/zone ensures that the Pods of my-app are distributed across different availability zones, providing resilience in case of zone failures.
+- The topologyKey: kubernetes.io/hostname ensures that the Pods are scheduled on nodes with the hostname high-capacity-node, which indicates nodes with higher resource capacity.
+
+Note that in a real deployment, you would need to replace high-capacity-node with the actual hostnames and configure the appropriate labels and node selectors based on your cluster configuration.
+
+## topologyKey: topology.kubernetes.io/region:
+
+This topologyKey represents the region of a node.
+It can be used to distribute Pods across different regions.
+
+### Example syntax usage:
+
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/region
+    whenUnsatisfiable: ScheduleAnyway
+```    
+
+## Custom Topology Keys:
+
+You can also define your own custom topology keys based on your infrastructure requirements.
+### Example syntax usage:
+
+```yaml
+affinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: my-custom-topology-key
+            operator: In
+            values:
+              - value1
+              - value2
+```
+
+It's important to note that the availability and behavior of these topology keys may vary depending on the Kubernetes distribution and underlying infrastructure. Consult the documentation and resources specific to your Kubernetes distribution for detailed information on supported topology keys and their usage in scheduling configurations.
+
